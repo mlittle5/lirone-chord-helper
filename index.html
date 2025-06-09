@@ -61,6 +61,7 @@
             color: #334155; /* Darker gray text */
             white-space: nowrap; /* Prevent notes from wrapping */
             display: flex;
+            flex-direction: column; /* Allow content to stack */
             align-items: center;
             justify-content: center;
             border-radius: 0.25rem; /* Small rounded corners for cells */
@@ -103,9 +104,20 @@
         /* Style for suspension arrow */
         .suspension-arrow {
             font-size: 0.9em; /* Slightly smaller than note text */
-            margin-left: 0.25em; /* Small space after the note */
             vertical-align: middle;
             line-height: 1;
+        }
+        .chord-function-label {
+            font-size: 0.75em; /* Smaller font for function labels */
+            color: rgba(0, 0, 0, 0.7); /* Slightly muted color for labels */
+            margin-top: 2px; /* Small space below the note */
+            font-weight: normal;
+        }
+        /* Adjust label color for highlighted cells for better contrast */
+        .highlighted-note .chord-function-label,
+        .resolved-note-highlight .chord-function-label,
+        .root-note-highlight .chord-function-label {
+            color: rgba(255, 255, 255, 0.9);
         }
         /* Responsive adjustments for smaller screens */
         @media (max-width: 768px) {
@@ -119,6 +131,9 @@
             .grid-cell, .grid-header {
                 padding: 0.5rem 0.3rem;
                 font-size: 0.875rem; /* Smaller font size */
+            }
+            .chord-function-label {
+                font-size: 0.65em;
             }
         }
     </style>
@@ -233,6 +248,22 @@
             }
         };
 
+        // Labels for common intervals/chord functions
+        const INTERVAL_FUNCTION_LABELS = {
+            0: 'Root',
+            1: 'm2',
+            2: 'M2',
+            3: 'm3',
+            4: 'M3',
+            5: 'P4',
+            6: 'dim5', // Tritone
+            7: 'P5',
+            8: 'aug5',
+            9: 'M6',
+            10: 'm7',
+            11: 'M7'
+        };
+
 
         // Lirone Notes data extracted from the provided Google Sheet
         // Format: [String Number, Open String Note, Fret 1 Note, ..., Fret 7 Note]
@@ -255,11 +286,10 @@
             [15, 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A']
         ];
 
-        // The desired order of open string pitches for the columns
-        const NEW_OPEN_STRING_ORDER = ['Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#'];
+        // This array will hold the reordered string data for rendering.
+        // As per the latest request, columns are now ordered by string number (1-15).
+        const DISPLAY_LIRONE_DATA = ORIGINAL_LIRONE_NOTES_DATA;
 
-        // This array will hold the reordered string data for rendering
-        let LIRONE_NOTES_DATA_FOR_RENDERING = [];
 
         // Get DOM elements
         const rootNoteSelect = document.getElementById('rootNote');
@@ -349,18 +379,18 @@
             // Clear existing content
             lironeFretboardDiv.innerHTML = '';
 
-            const numStrings = LIRONE_NOTES_DATA_FOR_RENDERING.length;
+            const numStrings = DISPLAY_LIRONE_DATA.length;
             // Set grid template columns dynamically: 1 for row labels, then numStrings for actual strings
             lironeFretboardDiv.style.gridTemplateColumns = `minmax(80px, 0.75fr) repeat(${numStrings}, 1fr)`;
 
-            // Create header row: empty top-left cell + String headers
+            // Create header row: empty top-left cell + String headers (String 1, String 2, etc.)
             const emptyHeaderCell = document.createElement('div');
             emptyHeaderCell.classList.add('grid-header', 'rounded-none');
             emptyHeaderCell.textContent = '';
             lironeFretboardDiv.appendChild(emptyHeaderCell);
 
             // Add String headers (e.g., "String 1 (C)", "String 2 (G)")
-            LIRONE_NOTES_DATA_FOR_RENDERING.forEach(stringData => {
+            DISPLAY_LIRONE_DATA.forEach(stringData => {
                 const stringNum = stringData[0];
                 const openNote = stringData[1];
                 const headerCell = document.createElement('div');
@@ -378,10 +408,15 @@
             openStringLabelCell.textContent = 'Open String';
             lironeFretboardDiv.appendChild(openStringLabelCell);
 
-            LIRONE_NOTES_DATA_FOR_RENDERING.forEach(stringData => {
+            DISPLAY_LIRONE_DATA.forEach(stringData => {
                 const cell = document.createElement('div');
                 cell.classList.add('grid-cell', 'open-string-row-cell');
-                cell.textContent = stringData[1]; // Open String note
+                
+                const noteSpan = document.createElement('span');
+                noteSpan.classList.add('original-note-text');
+                noteSpan.textContent = stringData[1]; // Open String note
+                cell.appendChild(noteSpan);
+
                 cell.dataset.note = normalizeNote(stringData[1]); // Store normalized note for highlighting
                 lironeFretboardDiv.appendChild(cell);
             });
@@ -394,16 +429,25 @@
                 fretLabelCell.textContent = `Fret ${fretNumber}`;
                 lironeFretboardDiv.appendChild(fretLabelCell);
 
-                LIRONE_NOTES_DATA_FOR_RENDERING.forEach(stringData => {
+                DISPLAY_LIRONE_DATA.forEach(stringData => {
                     const cell = document.createElement('div');
                     cell.classList.add('grid-cell');
+                    
                     // +2 to skip the string number and open string note in the stringData array
                     // Ensure we don't go out of bounds if original data has fewer frets
                     if (fretIndex + 2 < stringData.length) {
-                        cell.textContent = stringData[fretIndex + 2];
-                        cell.dataset.note = normalizeNote(stringData[fretIndex + 2]); // Store normalized note for highlighting
+                        const noteText = stringData[fretIndex + 2];
+                        const noteSpan = document.createElement('span');
+                        noteSpan.classList.add('original-note-text');
+                        noteSpan.textContent = noteText;
+                        cell.appendChild(noteSpan);
+
+                        cell.dataset.note = normalizeNote(noteText); // Store normalized note for highlighting
                     } else {
-                        cell.textContent = ''; // Or some other placeholder if fret doesn't exist
+                        const noteSpan = document.createElement('span');
+                        noteSpan.classList.add('original-note-text');
+                        noteSpan.textContent = ''; // Empty for out of bounds frets
+                        cell.appendChild(noteSpan);
                     }
                     lironeFretboardDiv.appendChild(cell);
                 });
@@ -411,53 +455,63 @@
         }
 
         /**
-         * Updates the highlighting of notes on the fretboard based on the selected chord.
+         * Updates the highlighting and function labels of notes on the fretboard based on the selected chord.
          */
         function updateHighlighting() {
-            // Get selected root note and chord type
             const selectedRoot = rootNoteSelect.value;
             const selectedType = chordTypeSelect.value;
 
-            // Calculate the notes in the selected chord, including suspension details if applicable
             const { chordNotes, suspendedNote, resolvedNote } = getChordNotesAndSuspensions(selectedRoot, selectedType);
             const isSuspension = CHORD_DEFINITIONS[selectedType]?.type === 'suspension';
-            const resolutionDirection = CHORD_DEFINITIONS[selectedType]?.resolutionDirection;
 
-            // Get all note cells on the fretboard that have a 'data-note' attribute
             const noteCells = lironeFretboardDiv.querySelectorAll('.grid-cell[data-note]');
 
-            // Remove existing highlights and arrows
+            // Clear existing highlights, labels, and arrows
             noteCells.forEach(cell => {
                 cell.classList.remove('highlighted-note', 'resolved-note-highlight', 'root-note-highlight');
-                // Remove any existing arrow spans
+                // Remove existing function label span and arrow span
+                const existingLabel = cell.querySelector('.chord-function-label');
+                if (existingLabel) existingLabel.remove();
                 const existingArrow = cell.querySelector('.suspension-arrow');
-                if (existingArrow) {
-                    existingArrow.remove();
-                }
+                if (existingArrow) existingArrow.remove();
             });
 
-            // Apply new highlights and potentially arrows
+            // Apply new highlights and labels
             noteCells.forEach(cell => {
                 const cellNote = cell.dataset.note;
+                const originalNoteTextSpan = cell.querySelector('.original-note-text');
 
+                if (!originalNoteTextSpan) return; // Should not happen if rendering is correct
+
+                // Calculate the interval for labeling
+                const intervalNumber = (getNoteIndex(cellNote) - getNoteIndex(selectedRoot) + 12) % 12;
+                let functionLabelText = INTERVAL_FUNCTION_LABELS[intervalNumber] || '';
+
+                // Add chord function label span
+                const functionLabelSpan = document.createElement('span');
+                functionLabelSpan.classList.add('chord-function-label');
+
+                // Prioritize highlighting: Root > Resolved > Suspended > Other Chord Tone
                 if (cellNote === normalizeNote(selectedRoot)) {
-                    // Highlight the root note in red
                     cell.classList.add('root-note-highlight');
+                    functionLabelSpan.textContent = `(${functionLabelText})`;
+                    cell.appendChild(functionLabelSpan);
                 } else if (resolvedNote && cellNote === resolvedNote && cellNote !== suspendedNote) {
-                    // Highlight resolved note with specific color if it's different from the suspended note
                     cell.classList.add('resolved-note-highlight');
-                } else if (chordNotes.has(cellNote)) {
-                    // Highlight all other notes of the chord (including the suspended note if applicable)
-                    cell.classList.add('highlighted-note');
-                }
-
-                // Add arrow if it's the suspended note and it's a suspension chord type
-                if (isSuspension && cellNote === suspendedNote && resolutionDirection) {
+                    functionLabelSpan.textContent = `(Resolved)`; // Specific label for resolved note
+                    cell.appendChild(functionLabelSpan);
+                } else if (isSuspension && cellNote === suspendedNote) {
+                    cell.classList.add('highlighted-note'); // Suspended note is also part of the chord
                     const arrowSpan = document.createElement('span');
                     arrowSpan.classList.add('suspension-arrow');
-                    // Changed to 'up' for all suspensions
-                    arrowSpan.textContent = '↑';
+                    arrowSpan.textContent = '↑'; // Arrow for suspension (up)
                     cell.appendChild(arrowSpan);
+                    functionLabelSpan.textContent = `(${functionLabelText})`; // Add interval label for suspended note
+                    cell.appendChild(functionLabelSpan);
+                } else if (chordNotes.has(cellNote)) {
+                    cell.classList.add('highlighted-note');
+                    functionLabelSpan.textContent = `(${functionLabelText})`;
+                    cell.appendChild(functionLabelSpan);
                 }
             });
         }
@@ -511,7 +565,7 @@
         }
 
         /**
-         * Populates the chord type dropdown with options. No arrows in dropdown.
+         * Populates the chord type dropdown with options.
          */
         function populateChordTypeDropdown() {
             chordTypeSelect.innerHTML = ''; // Clear existing options
@@ -519,7 +573,7 @@
                 const chordDef = CHORD_DEFINITIONS[key];
                 const option = document.createElement('option');
                 option.value = key;
-                option.textContent = chordDef.label; // No arrows in dropdown
+                option.textContent = chordDef.label;
                 chordTypeSelect.appendChild(option);
             }
         }
@@ -536,31 +590,10 @@
                 rootNoteSelect.appendChild(option);
             });
 
-            // Create a map from original string data for quick lookup by open note
-            const originalLironeDataMap = new Map();
-            ORIGINAL_LIRONE_NOTES_DATA.forEach(stringData => {
-                const normalizedOpenNote = normalizeNote(stringData[1]);
-                // Store the first occurrence if duplicates exist, as per the original sheet
-                if (!originalLironeDataMap.has(normalizedOpenNote)) {
-                    originalLironeDataMap.set(normalizedOpenNote, stringData);
-                }
-            });
-
-            // Reorder LIRONE_NOTES_DATA_FOR_RENDERING based on NEW_OPEN_STRING_ORDER
-            NEW_OPEN_STRING_ORDER.forEach(note => {
-                const normalizedNote = normalizeNote(note);
-                const stringData = originalLironeDataMap.get(normalizedNote);
-                if (stringData) {
-                    LIRONE_NOTES_DATA_FOR_RENDERING.push(stringData);
-                } else {
-                    console.warn(`No string data found for requested open note: ${note}. It might not be in the original data or is an enharmonic equivalent not handled.`);
-                }
-            });
-
             // Populate chord type dropdown
             populateChordTypeDropdown();
 
-            // Render the initial fretboard with the transposed layout
+            // Render the initial fretboard with the transposed layout (string numbers 1-15 as columns)
             renderLironeFretboard();
 
             // Set initial selection and highlight
