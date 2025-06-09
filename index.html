@@ -286,9 +286,11 @@
             [15, 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A']
         ];
 
+        // The desired order of open string pitches for the columns (for reordering ORIGINAL_LIRONE_NOTES_DATA)
+        const NEW_OPEN_STRING_ORDER = ['Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#'];
+
         // This array will hold the reordered string data for rendering.
-        // As per the latest request, columns are now ordered by string number (1-15).
-        const DISPLAY_LIRONE_DATA = ORIGINAL_LIRONE_NOTES_DATA;
+        let DISPLAY_LIRONE_DATA = [];
 
 
         // Get DOM elements
@@ -588,6 +590,27 @@
                 option.value = note;
                 option.textContent = note;
                 rootNoteSelect.appendChild(option);
+            });
+
+            // Create a map from original string data for quick lookup by open note
+            const originalLironeDataMap = new Map();
+            ORIGINAL_LIRONE_NOTES_DATA.forEach(stringData => {
+                const normalizedOpenNote = normalizeNote(stringData[1]);
+                // Store the first occurrence if duplicates exist, as per the original sheet
+                if (!originalLironeDataMap.has(normalizedOpenNote)) {
+                    originalLironeDataMap.set(normalizedOpenNote, stringData);
+                }
+            });
+
+            // Reorder DISPLAY_LIRONE_DATA based on NEW_OPEN_STRING_ORDER
+            NEW_OPEN_STRING_ORDER.forEach(note => {
+                const normalizedNote = normalizeNote(note);
+                const stringData = originalLironeDataMap.get(normalizedNote);
+                if (stringData) {
+                    DISPLAY_LIRONE_DATA.push(stringData);
+                } else {
+                    console.warn(`No string data found for requested open note: ${note}. It might not be in the original data or is an enharmonic equivalent not handled.`);
+                }
             });
 
             // Populate chord type dropdown
