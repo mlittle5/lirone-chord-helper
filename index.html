@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lirone Chord Helper</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the app */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align to start for better scrolling */
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 1rem; /* Rounded corners for the container */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem;
+            max-width: 90%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        .chord-selection-container, .chord-identifier-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            justify-content: center;
+            align-items: flex-end; /* Align items to the bottom for consistent input/button alignment */
+        }
+        .chord-identifier-container {
+            border-top: 1px solid #e2e8f0; /* Separator line */
+            padding-top: 2rem;
+            margin-top: 1rem;
+            flex-direction: column; /* Stack input and result vertically */
+            align-items: center;
+        }
+        .fretboard-grid {
+            display: grid;
+            /* grid-template-columns will be set dynamically by JavaScript */
+            gap: 1px; /* Small gap between cells */
+            border: 1px solid #cbd5e1; /* Light gray border for the grid */
+            border-radius: 0.5rem; /* Slightly rounded corners for the grid */
+            overflow: hidden; /* Ensures borders are contained */
+            max-width: 100%;
+            overflow-x: auto; /* Allow horizontal scrolling on smaller screens */
+        }
+        .grid-cell {
+            padding: 0.75rem 0.5rem;
+            background-color: #e2e8f0; /* Light gray background for cells */
+            text-align: center;
+            font-weight: 500;
+            color: #334155; /* Darker gray text */
+            white-space: nowrap; /* Prevent notes from wrapping */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.25rem; /* Small rounded corners for cells */
+        }
+        .grid-header {
+            background-color: #3b82f6; /* Blue background for headers */
+            color: #ffffff; /* White text for headers */
+            font-weight: bold;
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .highlighted-note {
+            background-color: #fcd34d !important; /* Amber for highlighted notes, !important to ensure precedence */
+            color: #1a202c; /* Dark text for contrast */
+            font-weight: bold;
+        }
+        /* New style for the open string row */
+        .open-string-row-header, .open-string-row-cell {
+            background-color: #a7f3d0; /* Light green-ish color for differentiation */
+            color: #065f46; /* Darker green text */
+        }
+        /* Style for resolved notes in suspensions */
+        .resolved-note-highlight {
+            background-color: #60a5fa !important; /* Light blue for resolved notes, !important to ensure precedence */
+            color: #ffffff; /* White text for resolved notes */
+            font-weight: bold;
+            z-index: 1; /* Bring to front if overlapping with other highlight styles */
+            position: relative;
+        }
+        /* Style for the root note highlight */
+        .root-note-highlight {
+            background-color: #ef4444 !important; /* Red color for root, !important for precedence */
+            color: #ffffff; /* White text for contrast */
+            font-weight: bold;
+        }
+        /* Style for suspension arrow */
+        .suspension-arrow {
+            font-size: 0.9em; /* Slightly smaller than note text */
+            margin-left: 0.25em; /* Small space after the note */
+            vertical-align: middle;
+            line-height: 1;
+        }
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1.5rem;
+            }
+            .chord-selection-container, .chord-identifier-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .grid-cell, .grid-header {
+                padding: 0.5rem 0.3rem;
+                font-size: 0.875rem; /* Smaller font size */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto p-8 bg-white rounded-2xl shadow-xl">
+        <h1 class="text-3xl font-extrabold text-center text-blue-700 mb-6">Lirone Chord Helper</h1>
+
+        <!-- Chord Selection Area -->
+        <div class="chord-selection-container">
+            <div>
+                <label for="rootNote" class="block text-gray-700 text-sm font-semibold mb-2">Root Note:</label>
+                <select id="rootNote" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900">
+                    <!-- Options populated by JavaScript -->
+                </select>
+            </div>
+
+            <div>
+                <label for="chordType" class="block text-gray-700 text-sm font-semibold mb-2">Chord Type:</label>
+                <select id="chordType" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900">
+                    <!-- Options populated by JavaScript dynamically based on CHORD_DEFINITIONS -->
+                </select>
+            </div>
+        </div>
+
+        <!-- Lirone Fretboard Grid -->
+        <div id="lironeFretboard" class="fretboard-grid">
+            <!-- Grid cells will be dynamically generated by JavaScript -->
+        </div>
+
+        <!-- Chord Identifier Section -->
+        <div class="chord-identifier-container">
+            <h2 class="text-2xl font-bold text-center text-blue-600 mb-4">Chord Identifier</h2>
+            <div class="flex flex-wrap items-center justify-center gap-4 w-full">
+                <div class="flex-grow">
+                    <label for="notesInput" class="block text-gray-700 text-sm font-semibold mb-2">Enter Notes (e.g., C E G, D F A C):</label>
+                    <input type="text" id="notesInput" placeholder="C E G Bb" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900">
+                </div>
+                <button id="identifyChordButton" class="px-6 py-2 bg-blue-500 text-white font-bold rounded-md shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out mt-auto">
+                    Identify Chord
+                </button>
+            </div>
+            <div id="identifiedChordResult" class="mt-4 text-center text-lg font-semibold text-gray-800 w-full">
+                <!-- Result will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Array of all 12 notes in chromatic order
+        const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+        // Define chord properties: intervals, type, and labels for display
+        // For suspensions, also define suspended and resolved relative intervals
+        const CHORD_DEFINITIONS = {
+            'major': { type: 'triad', intervals: [0, 4, 7], label: 'Major' },
+            'minor': { type: 'triad', intervals: [0, 3, 7], label: 'Minor' },
+            '7th': { type: 'seventh', intervals: [0, 4, 7, 10], label: 'Dominant 7th' },
+            '6th': { type: 'sixth', intervals: [0, 4, 7, 9], label: 'Major 6th' },
+            'minor6th': { type: 'sixth', intervals: [0, 3, 7, 9], label: 'Minor 6th' },
+            'diminished': { type: 'triad', intervals: [0, 3, 6], label: 'Diminished Triad' },
+            'halfDiminished7th': { type: 'seventh', intervals: [0, 3, 6, 10], label: 'Half-Diminished 7th (ø7)' },
+            'diminished7th': { type: 'seventh', intervals: [0, 3, 6, 9], label: 'Diminished 7th (o7)' },
+            'augmented': { type: 'triad', intervals: [0, 4, 8], label: 'Augmented' },
+            'major7th': { type: 'seventh', intervals: [0, 4, 7, 11], label: 'Major 7th' },
+            'minor7th': { type: 'seventh', intervals: [0, 3, 7, 10], label: 'Minor 7th' },
+
+            // Suspensions: These define the notes present during the suspension and the resolution point.
+            // `intervals` are the notes of the suspended chord.
+            // `suspendedRelativeInterval` is the dissonant interval relative to the root.
+            // `resolvedRelativeInterval` is the consonant interval relative to the root that the suspended note resolves to.
+            // `resolutionDirection`: 'up' (↑) or 'down' (↓) for visual arrow
+            'sus4-3': {
+                type: 'suspension',
+                intervals: [0, 5, 7], // Root, 4th, 5th (e.g., C, F, G for a C major context)
+                suspendedRelativeInterval: 5, // The 4th
+                resolvedRelativeInterval: 4,  // Resolves to the 3rd
+                label: 'Suspension 4-3',
+                resolutionDirection: 'up' // Changed to 'up'
+            },
+            'sus7-6': {
+                type: 'suspension',
+                intervals: [0, 7, 10], // Root, 5th, 7th (e.g., C, G, Bb for a C minor context, 7th from root)
+                suspendedRelativeInterval: 10, // The 7th (minor 7th for dominant, or major 7th for major)
+                resolvedRelativeInterval: 9, // Resolves to the 6th
+                label: 'Suspension 7-6',
+                resolutionDirection: 'up' // Changed to 'up'
+            },
+            'sus9-8': {
+                type: 'suspension',
+                intervals: [0, 2, 7], // Root, 9th (or 2nd), 5th (e.g., C, D, G for a C major context)
+                suspendedRelativeInterval: 2, // The 9th (or 2nd)
+                resolvedRelativeInterval: 0, // Resolves to the 8th (root)
+                label: 'Suspension 9-8',
+                resolutionDirection: 'up' // Changed to 'up'
+            },
+            'sus2-1': {
+                type: 'suspension',
+                intervals: [0, 2, 7], // Root, 2nd, 5th (similar to 9-8 often, but 2nd specifically for 2-1)
+                suspendedRelativeInterval: 2, // The 2nd
+                resolvedRelativeInterval: 0, // Resolves to the 1st (root)
+                label: 'Suspension 2-1',
+                resolutionDirection: 'up' // Changed to 'up'
+            },
+            'sus6-5': {
+                type: 'suspension',
+                intervals: [0, 7, 9], // Root, 5th, 6th (e.g., C, G, A)
+                suspendedRelativeInterval: 9, // The 6th
+                resolvedRelativeInterval: 7, // Resolves to the 5th
+                label: 'Suspension 6-5',
+                resolutionDirection: 'up' // Changed to 'up'
+            }
+        };
+
+
+        // Lirone Notes data extracted from the provided Google Sheet
+        // Format: [String Number, Open String Note, Fret 1 Note, ..., Fret 7 Note]
+        // Enharmonic equivalents are normalized to sharps for easier comparison
+        const ORIGINAL_LIRONE_NOTES_DATA = [
+            [1, 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G'],
+            [2, 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D'],
+            [3, 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A'],
+            [4, 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E'],
+            [5, 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
+            [6, 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#'],
+            [7, 'F#', 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#'],
+            [8, 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'],
+            [9, 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#'],
+            [10, 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#'],
+            [11, 'A#', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#'], // Bb
+            [12, 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B', 'C'],
+            [13, 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G'],
+            [14, 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D'],
+            [15, 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A']
+        ];
+
+        // The desired order of open string pitches for the columns
+        const NEW_OPEN_STRING_ORDER = ['Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#'];
+
+        // This array will hold the reordered string data for rendering
+        let LIRONE_NOTES_DATA_FOR_RENDERING = [];
+
+        // Get DOM elements
+        const rootNoteSelect = document.getElementById('rootNote');
+        const chordTypeSelect = document.getElementById('chordType');
+        const lironeFretboardDiv = document.getElementById('lironeFretboard');
+        const notesInput = document.getElementById('notesInput');
+        const identifyChordButton = document.getElementById('identifyChordButton');
+        const identifiedChordResult = document.getElementById('identifiedChordResult');
+
+        /**
+         * Normalizes a note string (e.g., 'Db' to 'C#') to match the NOTES array.
+         * @param {string} note The note string to normalize.
+         * @returns {string} The normalized note string.
+         */
+        function normalizeNote(note) {
+            // Check if note is a valid string before calling toUpperCase
+            if (typeof note !== 'string') {
+                console.warn(`Attempted to normalize non-string note: ${note}`);
+                return null;
+            }
+            const upperNote = note.toUpperCase();
+            switch (upperNote) {
+                case 'DB': return 'C#';
+                case 'EB': return 'D#';
+                case 'GB': return 'F#';
+                case 'AB': return 'G#';
+                case 'BB': return 'A#';
+                default: return upperNote;
+            }
+        }
+
+        /**
+         * Gets the index of a note in the NOTES array.
+         * Handles normalization before lookup.
+         * @param {string} note The note to find the index for.
+         * @returns {number} The index of the note, or -1 if not found.
+         */
+        function getNoteIndex(note) {
+            const normalized = normalizeNote(note);
+            if (normalized === null) return -1;
+            return NOTES.indexOf(normalized);
+        }
+
+        /**
+         * Calculates the notes that make up a given chord.
+         * @param {string} rootNote The root note of the chord (e.g., 'C', 'F#').
+         * @param {string} chordType The type of chord (e.g., 'major', 'minor', '7th').
+         * @returns {{chordNotes: Set<string>, suspendedNote: string|null, resolvedNote: string|null}} Object containing chord notes and specific suspension notes.
+         */
+        function getChordNotesAndSuspensions(rootNote, chordType) {
+            const rootIndex = getNoteIndex(rootNote);
+            if (rootIndex === -1) {
+                console.error(`Invalid root note: ${rootNote}`);
+                return { chordNotes: new Set(), suspendedNote: null, resolvedNote: null };
+            }
+
+            const chordDef = CHORD_DEFINITIONS[chordType];
+            if (!chordDef) {
+                console.error(`Invalid chord type: ${chordType}`);
+                return { chordNotes: new Set(), suspendedNote: null, resolvedNote: null };
+            }
+
+            const chordNotes = new Set();
+            chordDef.intervals.forEach(interval => {
+                const noteIndex = (rootIndex + interval) % NOTES.length;
+                chordNotes.add(NOTES[noteIndex]);
+            });
+
+            let suspendedNote = null;
+            let resolvedNote = null;
+
+            if (chordDef.type === 'suspension') {
+                const suspendedIndex = (rootIndex + chordDef.suspendedRelativeInterval) % NOTES.length;
+                suspendedNote = NOTES[suspendedIndex];
+
+                const resolvedIndex = (rootIndex + chordDef.resolvedRelativeInterval) % NOTES.length;
+                resolvedNote = NOTES[resolvedIndex];
+            }
+
+            return { chordNotes, suspendedNote, resolvedNote };
+        }
+
+        /**
+         * Renders the lirone fretboard grid dynamically in a transposed layout.
+         */
+        function renderLironeFretboard() {
+            // Clear existing content
+            lironeFretboardDiv.innerHTML = '';
+
+            const numStrings = LIRONE_NOTES_DATA_FOR_RENDERING.length;
+            // Set grid template columns dynamically: 1 for row labels, then numStrings for actual strings
+            lironeFretboardDiv.style.gridTemplateColumns = `minmax(80px, 0.75fr) repeat(${numStrings}, 1fr)`;
+
+            // Create header row: empty top-left cell + String headers
+            const emptyHeaderCell = document.createElement('div');
+            emptyHeaderCell.classList.add('grid-header', 'rounded-none');
+            emptyHeaderCell.textContent = '';
+            lironeFretboardDiv.appendChild(emptyHeaderCell);
+
+            // Add String headers (e.g., "String 1 (C)", "String 2 (G)")
+            LIRONE_NOTES_DATA_FOR_RENDERING.forEach(stringData => {
+                const stringNum = stringData[0];
+                const openNote = stringData[1];
+                const headerCell = document.createElement('div');
+                headerCell.classList.add('grid-header', 'rounded-none');
+                headerCell.textContent = `String ${stringNum} (${openNote})`;
+                lironeFretboardDiv.appendChild(headerCell);
+            });
+
+            // Fixed to 5 frets as per user request
+            const fretCount = 5;
+
+            // Create Open String row (label + notes)
+            const openStringLabelCell = document.createElement('div');
+            openStringLabelCell.classList.add('grid-header', 'rounded-none', 'open-string-row-header');
+            openStringLabelCell.textContent = 'Open String';
+            lironeFretboardDiv.appendChild(openStringLabelCell);
+
+            LIRONE_NOTES_DATA_FOR_RENDERING.forEach(stringData => {
+                const cell = document.createElement('div');
+                cell.classList.add('grid-cell', 'open-string-row-cell');
+                cell.textContent = stringData[1]; // Open String note
+                cell.dataset.note = normalizeNote(stringData[1]); // Store normalized note for highlighting
+                lironeFretboardDiv.appendChild(cell);
+            });
+
+            // Create Fret rows (label + notes for each fret across all strings)
+            for (let fretIndex = 0; fretIndex < fretCount; fretIndex++) {
+                const fretNumber = fretIndex + 1; // Fret numbers start from 1
+                const fretLabelCell = document.createElement('div');
+                fretLabelCell.classList.add('grid-header', 'rounded-none');
+                fretLabelCell.textContent = `Fret ${fretNumber}`;
+                lironeFretboardDiv.appendChild(fretLabelCell);
+
+                LIRONE_NOTES_DATA_FOR_RENDERING.forEach(stringData => {
+                    const cell = document.createElement('div');
+                    cell.classList.add('grid-cell');
+                    // +2 to skip the string number and open string note in the stringData array
+                    // Ensure we don't go out of bounds if original data has fewer frets
+                    if (fretIndex + 2 < stringData.length) {
+                        cell.textContent = stringData[fretIndex + 2];
+                        cell.dataset.note = normalizeNote(stringData[fretIndex + 2]); // Store normalized note for highlighting
+                    } else {
+                        cell.textContent = ''; // Or some other placeholder if fret doesn't exist
+                    }
+                    lironeFretboardDiv.appendChild(cell);
+                });
+            }
+        }
+
+        /**
+         * Updates the highlighting of notes on the fretboard based on the selected chord.
+         */
+        function updateHighlighting() {
+            // Get selected root note and chord type
+            const selectedRoot = rootNoteSelect.value;
+            const selectedType = chordTypeSelect.value;
+
+            // Calculate the notes in the selected chord, including suspension details if applicable
+            const { chordNotes, suspendedNote, resolvedNote } = getChordNotesAndSuspensions(selectedRoot, selectedType);
+            const isSuspension = CHORD_DEFINITIONS[selectedType]?.type === 'suspension';
+            const resolutionDirection = CHORD_DEFINITIONS[selectedType]?.resolutionDirection;
+
+            // Get all note cells on the fretboard that have a 'data-note' attribute
+            const noteCells = lironeFretboardDiv.querySelectorAll('.grid-cell[data-note]');
+
+            // Remove existing highlights and arrows
+            noteCells.forEach(cell => {
+                cell.classList.remove('highlighted-note', 'resolved-note-highlight', 'root-note-highlight');
+                // Remove any existing arrow spans
+                const existingArrow = cell.querySelector('.suspension-arrow');
+                if (existingArrow) {
+                    existingArrow.remove();
+                }
+            });
+
+            // Apply new highlights and potentially arrows
+            noteCells.forEach(cell => {
+                const cellNote = cell.dataset.note;
+
+                if (cellNote === normalizeNote(selectedRoot)) {
+                    // Highlight the root note in red
+                    cell.classList.add('root-note-highlight');
+                } else if (resolvedNote && cellNote === resolvedNote && cellNote !== suspendedNote) {
+                    // Highlight resolved note with specific color if it's different from the suspended note
+                    cell.classList.add('resolved-note-highlight');
+                } else if (chordNotes.has(cellNote)) {
+                    // Highlight all other notes of the chord (including the suspended note if applicable)
+                    cell.classList.add('highlighted-note');
+                }
+
+                // Add arrow if it's the suspended note and it's a suspension chord type
+                if (isSuspension && cellNote === suspendedNote && resolutionDirection) {
+                    const arrowSpan = document.createElement('span');
+                    arrowSpan.classList.add('suspension-arrow');
+                    // Changed to 'up' for all suspensions
+                    arrowSpan.textContent = '↑';
+                    cell.appendChild(arrowSpan);
+                }
+            });
+        }
+
+        /**
+         * Identifies a chord based on a given set of notes.
+         * @param {string[]} notesArray An array of note strings (e.g., ['C', 'E', 'G']).
+         * @returns {{root: string, type: string}|string} The identified chord object or 'Unknown Chord'/'Error message'.
+         */
+        function identifyChord(notesArray) {
+            if (notesArray.length < 3 || notesArray.length > 4) {
+                return 'Please enter 3 or 4 notes.';
+            }
+
+            const normalizedNotes = notesArray.map(normalizeNote).filter(n => n !== null);
+            if (normalizedNotes.length !== notesArray.length) {
+                return 'Invalid note(s) entered.';
+            }
+
+            // Convert notes to semitone indices relative to C
+            const noteIndexes = normalizedNotes.map(getNoteIndex).sort((a, b) => a - b);
+
+            // Try each note as a potential root
+            for (let i = 0; i < noteIndexes.length; i++) {
+                const rootIndex = noteIndexes[i];
+                const rootNote = NOTES[rootIndex];
+
+                // Calculate intervals relative to the current potential root
+                const currentIntervals = noteIndexes.map(noteIdx => (noteIdx - rootIndex + 12) % 12).sort((a, b) => a - b);
+
+                // Filter out the root itself (0) if there are multiple notes at the root position (octaves)
+                const uniqueIntervals = [...new Set(currentIntervals)].filter(interval => interval !== 0);
+
+                // Try to match intervals with chord definitions
+                for (const chordKey in CHORD_DEFINITIONS) {
+                    const chordDef = CHORD_DEFINITIONS[chordKey];
+                    // Skip suspension types for identification as they are dynamic
+                    if (chordDef.type === 'suspension') continue;
+
+                    const definedIntervals = [...chordDef.intervals].filter(interval => interval !== 0); // Exclude root (0) from definition
+
+                    // Check if lengths match and all unique intervals are present
+                    if (uniqueIntervals.length === definedIntervals.length &&
+                        uniqueIntervals.every((interval, idx) => interval === definedIntervals[idx])) {
+                        return { root: rootNote, type: chordKey }; // Return object with root and chord type key
+                    }
+                }
+            }
+
+            return 'Unknown Chord'; // Return string error
+        }
+
+        /**
+         * Populates the chord type dropdown with options. No arrows in dropdown.
+         */
+        function populateChordTypeDropdown() {
+            chordTypeSelect.innerHTML = ''; // Clear existing options
+            for (const key in CHORD_DEFINITIONS) {
+                const chordDef = CHORD_DEFINITIONS[key];
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = chordDef.label; // No arrows in dropdown
+                chordTypeSelect.appendChild(option);
+            }
+        }
+
+        /**
+         * Initializes the application.
+         */
+        function initialize() {
+            // Populate root note dropdown
+            NOTES.forEach(note => {
+                const option = document.createElement('option');
+                option.value = note;
+                option.textContent = note;
+                rootNoteSelect.appendChild(option);
+            });
+
+            // Create a map from original string data for quick lookup by open note
+            const originalLironeDataMap = new Map();
+            ORIGINAL_LIRONE_NOTES_DATA.forEach(stringData => {
+                const normalizedOpenNote = normalizeNote(stringData[1]);
+                // Store the first occurrence if duplicates exist, as per the original sheet
+                if (!originalLironeDataMap.has(normalizedOpenNote)) {
+                    originalLironeDataMap.set(normalizedOpenNote, stringData);
+                }
+            });
+
+            // Reorder LIRONE_NOTES_DATA_FOR_RENDERING based on NEW_OPEN_STRING_ORDER
+            NEW_OPEN_STRING_ORDER.forEach(note => {
+                const normalizedNote = normalizeNote(note);
+                const stringData = originalLironeDataMap.get(normalizedNote);
+                if (stringData) {
+                    LIRONE_NOTES_DATA_FOR_RENDERING.push(stringData);
+                } else {
+                    console.warn(`No string data found for requested open note: ${note}. It might not be in the original data or is an enharmonic equivalent not handled.`);
+                }
+            });
+
+            // Populate chord type dropdown
+            populateChordTypeDropdown();
+
+            // Render the initial fretboard with the transposed layout
+            renderLironeFretboard();
+
+            // Set initial selection and highlight
+            rootNoteSelect.value = 'C'; // Default to C Major
+            chordTypeSelect.value = 'major';
+            updateHighlighting();
+
+            // Add event listeners for selection changes
+            rootNoteSelect.addEventListener('change', updateHighlighting);
+            chordTypeSelect.addEventListener('change', updateHighlighting);
+
+            // Add event listener for chord identification
+            identifyChordButton.addEventListener('click', () => {
+                const inputNotes = notesInput.value.split(/\s*,\s*|\s+/).filter(Boolean); // Split by comma or space
+                const identified = identifyChord(inputNotes); // This now returns an object {root, type} or a string error.
+
+                if (typeof identified === 'object' && identified !== null) {
+                    // Chord successfully identified
+                    rootNoteSelect.value = identified.root;
+                    chordTypeSelect.value = identified.type;
+                    updateHighlighting(); // Update the fretboard based on new selections
+                    // Display the friendly label
+                    identifiedChordResult.textContent = `${identified.root} ${CHORD_DEFINITIONS[identified.type].label}`;
+                } else {
+                    // Chord not identified or invalid input
+                    identifiedChordResult.textContent = identified; // Display the error message
+                }
+            });
+        }
+
+        // Initialize the app when the window loads
+        window.onload = initialize;
+
+    </script>
+</body>
+</html>
